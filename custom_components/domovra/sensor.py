@@ -61,18 +61,25 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
     def available(self) -> bool:
         return bool(getattr(self.coordinator, "last_update_success", True))
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        # Un seul "Appareil Domovra" pour toutes les entités + bouton Visiter → Ingress
-        version = None
-        data = self.coordinator.data
-        if isinstance(data, dict):
-            version = data.get("_version")
-        return DeviceInfo(
-            identifiers={DEVICE_IDENTIFIER},
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-            name="Domovra",
-            sw_version=str(version) if version else None,
-            configuration_url=ingress_path(ADDON_SLUG),
-        )
+from homeassistant.helpers.network import get_url
+
+@property
+def device_info(self) -> DeviceInfo:
+    version = None
+    data = self.coordinator.data
+    if isinstance(data, dict):
+        version = data.get("_version")
+
+    # URL absolue basée sur l'instance HA
+    hass_url = get_url(self.coordinator.hass)
+    config_url = f"{hass_url}/hassio/ingress/{ADDON_SLUG}"
+
+    return DeviceInfo(
+        identifiers={DEVICE_IDENTIFIER},
+        manufacturer=MANUFACTURER,
+        model=MODEL,
+        name="Domovra",
+        sw_version=str(version) if version else None,
+        configuration_url=config_url,   # <- absolu maintenant
+    )
+
