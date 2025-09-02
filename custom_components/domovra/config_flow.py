@@ -1,10 +1,12 @@
+# custom_components/domovra/config_flow.py
+
 import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from .const import DOMAIN, CONF_BASE_URL, ingress_path, ADDON_SLUG
 
-# Motif pour détecter 127.0.0.1 / localhost
+# Détecte 127.0.0.1 / localhost pour normaliser vers l'Ingress
 _LOCALHOST_RE = re.compile(r"^https?://(127\.0\.0\.1|localhost)(:\d+)?/?.*$", re.I)
 
 class DomovraConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -12,13 +14,13 @@ class DomovraConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
-            base_url = user_input[CONF_BASE_URL].rstrip("/")
+            base_url = str(user_input[CONF_BASE_URL]).rstrip("/")
 
-            # Normalisation : si l’utilisateur met 127.0.0.1 → on force vers ingress
+            # Normalisation : toute URL locale → Ingress propre
             if _LOCALHOST_RE.match(base_url):
                 base_url = ingress_path(ADDON_SLUG)
 
-            # unique_id = base_url (normalisé) → évite doublons
+            # unique_id = base_url (normalisé) pour éviter les doublons d'entrée
             await self.async_set_unique_id(base_url)
             self._abort_if_unique_id_configured()
 
@@ -27,7 +29,7 @@ class DomovraConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data={CONF_BASE_URL: base_url},
             )
 
-        # Valeur par défaut : Ingress
+        # Par défaut, proposer l’Ingress
         default_url = ingress_path(ADDON_SLUG)
         schema = vol.Schema({
             vol.Required(CONF_BASE_URL, default=default_url): str
