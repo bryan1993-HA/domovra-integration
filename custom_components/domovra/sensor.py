@@ -1,5 +1,4 @@
 # custom_components/domovra/sensor.py
-
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
@@ -9,10 +8,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL, DEVICE_IDENTIFIER
+from .const import (
+    DOMAIN, MANUFACTURER, MODEL, DEVICE_IDENTIFIER,
+    ADDON_SLUG, ingress_path,
+)
 from .coordinator import DomovraCoordinator
 
-# Clés alignées avec /api/ha/summary
+# Aligne les clés avec /api/ha/summary
 SENSORS = [
     ("Produits", "products", "mdi:package-variant"),
     ("Stocks",   "lots",     "mdi:archive"),
@@ -23,7 +25,7 @@ SENSORS = [
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add_entities: AddEntitiesCallback):
     d = hass.data[DOMAIN][entry.entry_id]
     coord: DomovraCoordinator = d["coordinator"]
-    base_url: str = d["base_url"]
+    base_url: str = d["base_url"]  # utilisé par le coordinator (fetch API)
     entities = [DomovraCountSensor(coord, entry, base_url, name, key, icon) for name, key, icon in SENSORS]
     add_entities(entities)
 
@@ -52,6 +54,7 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        # Bouton "Visiter" → UI Ingress, indépendamment de base_url
         version = None
         if isinstance(self.coordinator.data, dict):
             version = self.coordinator.data.get("_version")
@@ -61,5 +64,5 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
             model=MODEL,
             name="Domovra",
             sw_version=str(version) if version else None,
-            configuration_url=self._base_url or None,  # → bouton "Visiter" vers l’Ingress
+            configuration_url=ingress_path(ADDON_SLUG),
         )
