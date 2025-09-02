@@ -1,4 +1,3 @@
-# custom_components/domovra/config_flow.py
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -24,12 +23,12 @@ class DomovraConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="user", data_schema=schema)
 
     @callback
-    def async_get_options_flow(self, config_entry):
+    def async_get_options_flow(self, config_entry: config_entries.ConfigEntry):
+        # <-- la signature DOIT accepter config_entry
         return DomovraOptionsFlow(config_entry)
 
-
 class DomovraOptionsFlow(config_entries.OptionsFlow):
-    def __init__(self, entry):
+    def __init__(self, entry: config_entries.ConfigEntry):
         self.entry = entry
 
     async def async_step_init(self, user_input=None):
