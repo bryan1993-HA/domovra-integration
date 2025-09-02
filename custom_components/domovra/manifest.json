@@ -1,7 +1,7 @@
 {
     "domain": "domovra",
     "name": "Domovra",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "codeowners": [
         "@Bryan94400"
     ],
@@ -10,6 +10,7 @@
     "requirements": []
 
 }
+
 
 
 
