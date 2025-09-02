@@ -1,4 +1,3 @@
-# custom_components/domovra/sensor.py
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
@@ -7,10 +6,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.network import get_url  # <-- pour construire une URL absolue
 
 from .const import (
     DOMAIN, MANUFACTURER, MODEL, DEVICE_IDENTIFIER,
-    ADDON_SLUG, ingress_path,
+    ADDON_SLUG,
 )
 from .coordinator import DomovraCoordinator
 
@@ -45,7 +45,7 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
         self._entry = entry
         self._base_url = base_url
         self._attr_name = f"Domovra {label}"
-        self._attr_unique_id = f"{entry.entry_id}_{new_key}"  # unique par config entry
+        self._attr_unique_id = f"{entry.entry_id}_{new_key}"
         self._attr_icon = icon
 
     @property
@@ -61,25 +61,26 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
     def available(self) -> bool:
         return bool(getattr(self.coordinator, "last_update_success", True))
 
-from homeassistant.helpers.network import get_url
+    @property
+    def device_info(self) -> DeviceInfo:
+        # URL absolue de ton instance HA (http://...:8123)
+        try:
+            base = get_url(self.hass)  # self.hass fourni par Entity
+            config_url = f"{base}/hassio/ingress/{ADDON_SLUG}"
+        except Exception:
+            # Si jamais get_url échoue, on omet configuration_url
+            config_url = None
 
-@property
-def device_info(self) -> DeviceInfo:
-    version = None
-    data = self.coordinator.data
-    if isinstance(data, dict):
-        version = data.get("_version")
+        version = None
+        data = self.coordinator.data
+        if isinstance(data, dict):
+            version = data.get("_version")
 
-    # URL absolue basée sur l'instance HA
-    hass_url = get_url(self.coordinator.hass)
-    config_url = f"{hass_url}/hassio/ingress/{ADDON_SLUG}"
-
-    return DeviceInfo(
-        identifiers={DEVICE_IDENTIFIER},
-        manufacturer=MANUFACTURER,
-        model=MODEL,
-        name="Domovra",
-        sw_version=str(version) if version else None,
-        configuration_url=config_url,   # <- absolu maintenant
-    )
-
+        return DeviceInfo(
+            identifiers={DEVICE_IDENTIFIER},
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+            name="Domovra",
+            sw_version=str(version) if version else None,
+            configuration_url=config_url,  # <- ABSOLU (finit l’erreur "invalid configuration_url")
+        )
