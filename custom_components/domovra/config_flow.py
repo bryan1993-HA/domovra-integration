@@ -1,20 +1,36 @@
+import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from .const import DOMAIN
+from .const import DOMAIN, CONF_BASE_URL, ingress_path, ADDON_SLUG
+
+# Motif pour détecter 127.0.0.1 / localhost
+_LOCALHOST_RE = re.compile(r"^https?://(127\.0\.0\.1|localhost)(:\d+)?/?.*$", re.I)
 
 class DomovraConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
-            unique_id = user_input["base_url"].rstrip("/")
-            await self.async_set_unique_id(unique_id)
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(title="Domovra", data=user_input)
+            base_url = user_input[CONF_BASE_URL].rstrip("/")
 
+            # Normalisation : si l’utilisateur met 127.0.0.1 → on force vers ingress
+            if _LOCALHOST_RE.match(base_url):
+                base_url = ingress_path(ADDON_SLUG)
+
+            # unique_id = base_url (normalisé) → évite doublons
+            await self.async_set_unique_id(base_url)
+            self._abort_if_unique_id_configured()
+
+            return self.async_create_entry(
+                title="Domovra",
+                data={CONF_BASE_URL: base_url},
+            )
+
+        # Valeur par défaut : Ingress
+        default_url = ingress_path(ADDON_SLUG)
         schema = vol.Schema({
-            vol.Required("base_url", default="http://127.0.0.1:8123"): str
+            vol.Required(CONF_BASE_URL, default=default_url): str
         })
         return self.async_show_form(step_id="user", data_schema=schema)
 
@@ -22,14 +38,16 @@ class DomovraConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(self, config_entry):
         return DomovraOptionsFlow(config_entry)
 
+
 class DomovraOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, entry):
         self.entry = entry
 
     async def async_step_init(self, user_input=None):
-        import voluptuous as vol
         scan = self.entry.options.get("scan_interval", 30)
-        schema = vol.Schema({vol.Required("scan_interval", default=scan): int})
+        schema = vol.Schema({
+            vol.Required("scan_interval", default=scan): int
+        })
         if user_input:
             return self.async_create_entry(title="", data=user_input)
         return self.async_show_form(step_id="init", data_schema=schema)
