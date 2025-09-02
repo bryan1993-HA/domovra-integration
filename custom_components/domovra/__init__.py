@@ -1,14 +1,23 @@
+from __future__ import annotations
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN, PLATFORMS
 from .coordinator import DomovraCoordinator
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    base_url = entry.data["base_url"]
+    # base_url a déjà été saisi en config_flow
+    base_url: str = entry.data["base_url"]
+
     coordinator = DomovraCoordinator(hass, base_url)
     await coordinator.async_config_entry_first_refresh()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    # Stocke coord + base_url (utile pour configuration_url de l'appareil)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator,
+        "base_url": base_url,
+    }
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
