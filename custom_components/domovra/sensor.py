@@ -12,10 +12,10 @@ from .const import (
     DOMAIN, MANUFACTURER, MODEL, DEVICE_IDENTIFIER,
     ADDON_SLUG, ingress_path,
 )
+from .coordinator import DomovraCoordinator
 
-# Déclare 4 capteurs, avec les clés “nouvelles” ET “anciennes” en fallback
+# (label, new_key, old_key, icon)
 SENSORS = [
-    # (label, new_key, old_key, icon)
     ("Produits", "products", "products_count", "mdi:package-variant"),
     ("Stocks",   "lots",     "lots_count",     "mdi:archive"),
     ("Bientôt",  "soon",     "soon_count",     "mdi:timer-sand"),
@@ -23,18 +23,9 @@ SENSORS = [
 ]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
-    # Récupération robuste: selon __init__.py, hass.data peut stocker un dict ou directement le coordinator
-    raw = hass.data[DOMAIN][entry.entry_id]
-    if isinstance(raw, dict):
-        coordinator = raw.get("coordinator")
-        base_url = raw.get("base_url")
-    else:
-        coordinator = raw
-        base_url = None
-
-    if coordinator is None:
-        # Sécurité: si vraiment manquant, on n’ajoute rien.
-        return
+    stored = hass.data[DOMAIN][entry.entry_id]
+    coordinator: DomovraCoordinator = stored["coordinator"]
+    base_url: str = stored["base_url"]
 
     entities = [
         DomovraCountSensor(coordinator, entry, base_url, label, new_key, old_key, icon)
@@ -42,12 +33,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     ]
     async_add_entities(entities)
 
-
 class DomovraCountSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, coordinator, entry: ConfigEntry, base_url: str | None,
+    def __init__(self, coordinator: DomovraCoordinator, entry: ConfigEntry, base_url: str,
                  label: str, new_key: str, old_key: str, icon: str):
         super().__init__(coordinator)
         self._new_key = new_key
@@ -55,13 +45,12 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
         self._entry = entry
         self._base_url = base_url
         self._attr_name = f"Domovra {label}"
-        self._attr_unique_id = f"{entry.entry_id}_{new_key}"  # stable par entrée
+        self._attr_unique_id = f"{entry.entry_id}_{new_key}"  # unique par config entry
         self._attr_icon = icon
 
     @property
     def native_value(self):
         data = self.coordinator.data or {}
-        # Priorité à la nouvelle clé, sinon fallback ancienne
         if isinstance(data, dict):
             if self._new_key in data and data[self._new_key] is not None:
                 return data[self._new_key]
@@ -74,10 +63,11 @@ class DomovraCountSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        # Bouton "Visiter" → UI Ingress
+        # Un seul "Appareil Domovra" pour toutes les entités + bouton Visiter → Ingress
         version = None
-        if isinstance(self.coordinator.data, dict):
-            version = self.coordinator.data.get("_version")
+        data = self.coordinator.data
+        if isinstance(data, dict):
+            version = data.get("_version")
         return DeviceInfo(
             identifiers={DEVICE_IDENTIFIER},
             manufacturer=MANUFACTURER,
